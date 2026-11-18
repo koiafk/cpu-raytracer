@@ -4,6 +4,9 @@ A physically-based 3D rendering engine built from scratch in a single HTML file.
 
 **[Launch the Raytracer](https://koiafk.github.io/cpu-raytracer/)**
 
+
+![Screenshot](screenshot.png)
+
 ## What it does
 - **Ray Intersections:** Calculates real-time ray-sphere and ray-plane intersections.
 - **Lighting & Shadows:** Implements Lambertian diffuse shading with multiple colored point lights and hard shadows.
