@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>koiafk | CPU Raytracer</title>
+<style>
+  :root {
+    --bg-app: #121212;
+    --bg-deep: #0d0d0d;
+    --bg-viewport: #101010;
+    --panel-head: #1e1e1e;
+    --panel-body: #141414;
+    --line: #2a2a2a;
+    --line-strong: #333333;
+    --field: #1a1a1a;
+    --field-hover: #333333;
+    --text: #e0e0e0;
+    --muted: #9a9a9a;
+    --dim: #6a6a6a;
+    --faint: #4f4f4f;
+    --accent: #c8a24a;
+    --accent-hi: #d6b15c;
+    --accent-lo: #b08c3c;
+    --accent-dim: #6b5a30;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, Tahoma, sans-serif;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg-app);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font-family: inherit; }
+
+  .app {
+    display: grid;
+    grid-template-rows: 30px minmax(0, 1fr) 26px;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ==================== Menu bar ==================== */
+
+  .menubar {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--line-strong);
+    position: relative;
+    z-index: 30;
+    user-select: none;
+    overflow: visible;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 0 13px 0 12px;
+  }
+
+  .brand-mark {
+    width: 9px;
+    height: 9px;
+    background: var(--accent);
+    flex: 0 0 auto;
+  }
+
+  .brand-name {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .menu {
+    display: flex;
+    align-items: stretch;
+    flex: 0 0 auto;
+    border-left: 1px solid #242424;
+  }
+
+  .menu-item {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .menu-trigger {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    flex: 0 0 auto;
+    padding: 0 11px;
+    color: #b4b4b4;
+    font-size: 11.5px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: default;
+  }
+
+  .menu-trigger:hover {
+    background: var(--panel-head);
+    color: var(--text);
+  }
+
+  .menu-item.open > .menu-trigger {
+    background: var(--panel-head);
+    color: var(--text);
+  }
+
+  .menu-trigger:focus-visible {
+    outline: 1px solid var(--accent-dim);
+    outline-offset: -2px;
+  }
+
+  .menu-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 60;
+    min-width: 196px;
+    padding: 3px;
+    background: #171717;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+  }
+
+  .menu-panel[hidden] { display: none; }
+
+  .menu-panel.align-right {
+    left: auto;
+    right: 0;
+  }
+
+  .menu-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    width: 100%;
+    height: 25px;
+    padding: 0 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 1px;
+    color: #c6c6c6;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    text-align: left;
+    white-space: nowrap;
+    cursor: default;
+  }
+
+  .menu-action:hover {
+    background: var(--panel-head);
+    color: var(--text);
+  }
+
+  .menu-action:focus-visible {
+    outline: 1px solid var(--accent-dim);
+    outline-offset: -1px;
+  }
+
+  .menu-hint {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: #5f5f5f;
+    letter-spacing: 0.02em;
+  }
+
+  .doc-title {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    height: 100%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #5c5c5c;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+  }
+
+  .engine {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+    padding: 0 13px;
+    border-left: 1px solid #242424;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #b8b8b8;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .engine .engine-label { color: #5f5f5f; }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    background: #555555;
+    flex: 0 0 auto;
+  }
+
+  .status-dot.busy { background: var(--accent); }
+  .status-dot.done { background: #7d8a63; }
+
+  /* ==================== Main split ==================== */
+
+  .main {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* ==================== Sidebar ==================== */
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-app);
+    border-right: 1px solid var(--line-strong);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #333333 var(--bg-app);
+  }
+
+  .sidebar::-webkit-scrollbar { width: 8px; }
+  .sidebar::-webkit-scrollbar-track { background: var(--bg-app); }
+  .sidebar::-webkit-scrollbar-thumb { background: #2f2f2f; }
+
+  .panel {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-body);
+  }
+
+  .panel > summary {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 10px;
+    list-style: none;
+    background: var(--panel-head);
+    border-bottom: 1px solid var(--line);
+    cursor: default;
+    user-select: none;
+  }
+
+  .panel > summary::-webkit-details-marker { display: none; }
+
+  .panel > summary:hover { background: #242424; }
+
+  .chev {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    color: #7a7a7a;
+    transition: transform 100ms linear;
+  }
+
+  .panel:not([open]) > summary .chev { transform: rotate(-90deg); }
+
+  .panel-icon {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    color: #8a8a8a;
+  }
+
+  .panel-title {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #c6c6c6;
+  }
+
+  .panel-body {
+    padding: 7px 10px 10px;
+  }
+
+  .panel-note {
+    margin-top: 7px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: var(--faint);
+  }
+
+  /* ==================== Fields ==================== */
+
+  .field {
+    display: grid;
+    grid-template-columns: 1fr 132px;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+  }
+
+  .field label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .entry {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    min-width: 0;
+    background: var(--field);
+    border: 1px solid transparent;
+    border-radius: 2px;
+  }
+
+  .entry:hover { border-color: var(--field-hover); }
+  .entry:focus-within { border-color: var(--accent-dim); }
+
+  .entry input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 7px;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .entry input[type="number"]::-webkit-inner-spin-button,
+  .entry input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .entry .suffix {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    padding: 0 7px;
+    border-left: 1px solid #2c2c2c;
+    background: #161616;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: #777777;
+    white-space: nowrap;
+  }
+
+  .select-wrap {
+    position: relative;
+    height: 24px;
+    min-width: 0;
+    background: var(--field);
+    border: 1px solid transparent;
+    border-radius: 2px;
+  }
+
+  .select-wrap:hover { border-color: var(--field-hover); }
+  .select-wrap:focus-within { border-color: var(--accent-dim); }
+
+  .select-wrap select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 100%;
+    padding: 0 22px 0 7px;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: default;
+  }
+
+  .select-wrap select option {
+    background: var(--field);
+    color: var(--text);
+  }
+
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    top: 10px;
+    width: 0;
+    height: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 4px solid #7a7a7a;
+    pointer-events: none;
+  }
+
+  .size-pair {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .size-pair .times {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--faint);
+  }
+
+  /* ==================== Render button ==================== */
+
+  .render-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    height: 30px;
+    margin-top: 7px;
+    padding: 0;
+    background: var(--accent);
+    border: 1px solid #d8b45f;
+    border-radius: 2px;
+    color: #141414;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .render-btn svg {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+  }
+
+  .render-btn:hover {
+    background: var(--accent-hi);
+    border-color: #e0c070;
+  }
+
+  .render-btn:active {
+    background: var(--accent-lo);
+    border-color: #c9a44f;
+  }
+
+  .render-btn:focus-visible {
+    outline: 1px solid var(--accent-hi);
+    outline-offset: 1px;
+  }
+
+  /* ==================== Readouts ==================== */
+
+  .readout-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 22px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .readout-row span:last-child {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #c2c2c2;
+    text-align: right;
+  }
+
+  .kv-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 21px;
+    border-bottom: 1px solid #1f1f1f;
+    font-size: 11px;
+  }
+
+  .kv-row:last-child { border-bottom: 0; }
+
+  .kv-key {
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kv-val {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #b0b0b0;
+    white-space: nowrap;
+  }
+
+  .kv-row.selectable { cursor: pointer; }
+
+  .kv-row.selectable:hover { background: #1c1c1c; }
+
+  .kv-row.selectable:focus-visible {
+    outline: 1px solid var(--accent-dim);
+    outline-offset: -1px;
+  }
+
+  .kv-row.selected {
+    background: #202020;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .kv-row.selected .kv-key { color: var(--text); }
+
+  .sphere-editor {
+    margin-top: 6px;
+    padding-top: 3px;
+    border-top: 1px solid #262626;
+  }
+
+  .sphere-editor[hidden] { display: none; }
+
+  .editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 22px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #9a9a9a;
+  }
+
+  .editor-kind {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #6a6a6a;
+  }
+
+  .color-input {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 3px 4px;
+    background: transparent;
+    border: 0;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .color-input::-webkit-color-swatch-wrapper { padding: 0; }
+
+  .color-input::-webkit-color-swatch {
+    border: 1px solid #3a3a3a;
+    border-radius: 1px;
+  }
+
+  .color-input::-moz-color-swatch {
+    border: 1px solid #3a3a3a;
+    border-radius: 1px;
+  }
+
+  .sidebar-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding: 8px 10px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+  }
+
+  .sidebar-author {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    flex: 0 0 auto;
+    padding: 9px 10px;
+    border-top: 1px solid var(--line);
+    background: var(--bg-app);
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #666666;
+  }
+
+  /* ==================== Viewport ==================== */
+
+  .viewport-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg-viewport);
+  }
+
+  .viewport-overlay {
+    position: absolute;
+    top: 9px;
+    left: 12px;
+    z-index: 1;
+    display: flex;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    color: #6d6d6d;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+  }
+
+  .overlay-sep { color: #3d3d3d; }
+
+  .viewport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 30px;
+  }
+
+  #canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    background: #000000;
+    border: 1px solid var(--line-strong);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  #canvas.dragging { cursor: grabbing; }
+
+  /* ==================== Status bar ==================== */
+
+  .statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 12px;
+    background: var(--bg-deep);
+    border-top: 1px solid var(--line-strong);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #8a8a8a;
+    min-width: 0;
+    user-select: none;
+  }
+
+  .status-left,
+  .status-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .stat-label {
+    font-family: var(--sans);
+    font-size: 9.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #5f5f5f;
+  }
+
+  .stat-value {
+    color: #d0d0d0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-sep {
+    width: 1px;
+    height: 11px;
+    background: #2c2c2c;
+  }
+
+  /* ==================== About modal ==================== */
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-backdrop[hidden] { display: none; }
+
+  .modal {
+    width: 320px;
+    max-width: 100%;
+    background: var(--panel-head);
+    border: 1px solid #3a3a3a;
+    border-radius: 2px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 30px;
+    padding: 0 10px;
+    background: #242424;
+    border-bottom: 1px solid var(--line);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #cfcfcf;
+  }
+
+  .modal-close {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: #9a9a9a;
+    font-size: 15px;
+    line-height: 1;
+    cursor: default;
+  }
+
+  .modal-close:hover {
+    background: #2e2e2e;
+    color: var(--text);
+  }
+
+  .modal-body {
+    padding: 14px 12px;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #b8b8b8;
+  }
+
+  .modal-name {
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .modal-body p { margin: 0 0 8px; }
+
+  .modal-meta {
+    margin-bottom: 0 !important;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.02em;
+    color: #5f5f5f;
+  }
+
+  .modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 12px 12px;
+  }
+
+  .modal-btn {
+    height: 24px;
+    padding: 0 14px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 2px;
+    color: var(--text);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: default;
+  }
+
+  .modal-btn:hover { background: #333333; }
+
+  @media (max-width: 980px) {
+    .doc-title { display: none; }
+  }
+
+  @media (max-width: 640px) {
+    .brand-name { display: none; }
+    .main { grid-template-columns: 260px minmax(0, 1fr); }
+    .viewport { padding: 16px; }
+    .viewport-overlay { top: 6px; left: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ==================== Menu bar ==================== -->
+  <header class="menubar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name">Raytracer</span>
+    </div>
+
+    <nav class="menu">
+      <div class="menu-item">
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-expanded="false">File</button>
+        <div class="menu-panel" hidden>
+          <button type="button" class="menu-action" data-action="export-png">
+            <span>Export PNG</span>
+            <span class="menu-hint">PNG</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-expanded="false">Render</button>
+        <div class="menu-panel" hidden>
+          <button type="button" class="menu-action" data-action="render-hq">
+            <span>Render High Quality</span>
+            <span class="menu-hint">32b &middot; 16spp</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-expanded="false">View</button>
+        <div class="menu-panel align-right" hidden>
+          <button type="button" class="menu-action" data-action="reset-camera">
+            <span>Reset Camera</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-expanded="false">Help</button>
+        <div class="menu-panel align-right" hidden>
+          <button type="button" class="menu-action" data-action="about">
+            <span>About</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="doc-title">untitled.scene</div>
+
+    <div class="engine">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="engine-label">Engine:</span>
+      <span id="status-text">Idle</span>
+    </div>
+  </header>
+
+  <!-- ==================== Sidebar + viewport ==================== -->
+  <div class="main">
+
+    <aside class="sidebar">
+
+      <details class="panel" open>
+        <summary>
+          <svg class="chev" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 3.5L5 6.5L8 3.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <svg class="panel-icon" viewBox="0 0 14 14" aria-hidden="true">
+            <circle cx="3" cy="4" r="1.4" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <circle cx="11" cy="7" r="1.4" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <circle cx="5" cy="10" r="1.4" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M1 4h.6M4.4 4H13M1 7h8.6M12.4 7H13M1 10h2.6M6.4 10H13" fill="none" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          <span class="panel-title">Render Settings</span>
+        </summary>
+
+        <div class="panel-body">
+          <div class="field">
+            <label for="resolution">Resolution</label>
+            <div class="select-wrap">
+              <select id="resolution"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="width">Size</label>
+            <div class="size-pair">
+              <div class="entry">
+                <input id="width" type="number" min="64" max="3840" step="1" value="960" aria-label="Width">
+              </div>
+              <span class="times">&times;</span>
+              <div class="entry">
+                <input id="height" type="number" min="64" max="2160" step="1" value="540" aria-label="Height">
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="bounces">Max Bounces</label>
+            <div class="entry">
+              <input id="bounces" type="number" min="0" max="32" step="1" value="5">
+              <span class="suffix">bounces</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="samples">Samples</label>
+            <div class="entry">
+              <input id="samples" type="number" min="1" max="64" step="1" value="1">
+              <span class="suffix">spp</span>
+            </div>
+          </div>
+
+          <button id="render" class="render-btn" type="button">
+            <svg viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M2 1.5L8 5L2 8.5Z" fill="currentColor"/>
+            </svg>
+            Render
+          </button>
+        </div>
+      </details>
+
+      <details class="panel" open>
+        <summary>
+          <svg class="chev" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 3.5L5 6.5L8 3.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <svg class="panel-icon" viewBox="0 0 14 14" aria-hidden="true">
+            <rect x="1.5" y="4.5" width="8" height="6" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M9.5 6.5L12.5 5.2V9.8L9.5 8.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          <span class="panel-title">Camera</span>
+        </summary>
+
+        <div class="panel-body">
+          <div class="readout-row"><span>Projection</span><span>Perspective</span></div>
+          <div class="readout-row"><span>Field of View</span><span>42&deg;</span></div>
+          <div class="readout-row"><span>Orbit Target</span><span>0.0, 1.0, 0.0</span></div>
+          <p class="panel-note">Drag inside the viewport to orbit, then render again.</p>
+        </div>
+      </details>
+
+      <details class="panel" open>
+        <summary>
+          <svg class="chev" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 3.5L5 6.5L8 3.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <svg class="panel-icon" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M7 1.5L12 4.2V9.8L7 12.5L2 9.8V4.2Z" fill="none" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M2 4.2L7 6.9L12 4.2M7 6.9V12.5" fill="none" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          <span class="panel-title">Scene</span>
+        </summary>
+
+        <div class="panel-body">
+          <div id="scene-list"></div>
+
+          <div class="sphere-editor" id="sphere-editor" hidden>
+            <div class="editor-head">
+              <span id="editor-title">Sphere</span>
+              <span class="editor-kind" id="editor-kind">diffuse</span>
+            </div>
+
+            <div class="field">
+              <label for="sphere-color">Color</label>
+              <div class="entry">
+                <input id="sphere-color" class="color-input" type="color" value="#c7c7c7">
+                <span class="suffix" id="sphere-color-hex">#C7C7C7</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="sphere-material">Material</label>
+              <div class="select-wrap">
+                <select id="sphere-material">
+                  <option value="diffuse">Diffuse</option>
+                  <option value="mirror">Mirror</option>
+                  <option value="glass">Glass</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="sidebar-foot">
+        <span>v0.5</span>
+        <span>CPU &middot; PURE JS</span>
+      </div>
+
+      <div class="sidebar-author">AUTHOR: koiafk</div>
+
+    </aside>
+
+    <main class="viewport-wrap">
+      <div class="viewport-overlay">
+        <span>Perspective</span>
+        <span class="overlay-sep">|</span>
+        <span id="viewport-meta">960 &times; 540 &middot; 16:9</span>
+      </div>
+
+      <div class="viewport">
+        <canvas id="canvas" width="960" height="540"></canvas>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ==================== Status bar ==================== -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <div class="stat">
+        <span class="stat-label">Time</span>
+        <span class="stat-value" id="stat-time">0.00 s</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat">
+        <span class="stat-label">Rays Cast</span>
+        <span class="stat-value" id="stat-rays">0</span>
+      </div>
+    </div>
+
+    <div class="status-right">
+      <span class="stat-label">Resolution</span>
+      <span class="stat-value" id="status-resolution">960 &times; 540</span>
+    </div>
+  </footer>
+
+  <!-- ==================== About modal ==================== -->
+  <div class="modal-backdrop" id="about-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <div class="modal-head">
+        <span id="about-title">About</span>
+        <button type="button" class="modal-close" id="about-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-name">koiafk OS - CPU Raytracer</div>
+        <p>Built from scratch in pure JavaScript.</p>
+        <p class="modal-meta">Single file &middot; zero dependencies &middot; Canvas 2D</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="modal-btn" id="about-dismiss">Close</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. MATH — immutable 3D vector
+   ============================================================ */
+
+class Vector {
+  constructor(x = 0, y = 0, z = 0) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+  add(v) {
+    return new Vector(this.x + v.x, this.y + v.y, this.z + v.z);
+  }
+
+  sub(v) {
+    return new Vector(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+
+  // Component-wise scalar multiply.
+  mul(s) {
+    return new Vector(this.x * s, this.y * s, this.z * s);
+  }
+
+  // Component-wise (Hadamard) product, used for color tinting.
+  hadamard(v) {
+    return new Vector(this.x * v.x, this.y * v.y, this.z * v.z);
+  }
+
+  dot(v) {
+    return this.x * v.x + this.y * v.y + this.z * v.z;
+  }
+
+  // Right-handed cross product.
+  cross(v) {
+    return new Vector(
+      this.y * v.z - this.z * v.y,
+      this.z * v.x - this.x * v.z,
+      this.x * v.y - this.y * v.x
+    );
+  }
+
+  length() {
+    return Math.hypot(this.x, this.y, this.z);
+  }
+
+  normalize() {
+    const len = this.length();
+    // Guard against division by zero for degenerate vectors.
+    return len > 0 ? this.mul(1 / len) : new Vector(0, 0, 0);
+  }
+
+  clone() {
+    return new Vector(this.x, this.y, this.z);
+  }
+}
+
+class Ray {
+  constructor(origin, direction) {
+    this.origin = origin;
+    this.direction = direction;
+  }
+
+  // Point along the ray at parameter t.
+  at(t) {
+    return this.origin.add(this.direction.mul(t));
+  }
+}
+
+// Small offset to avoid self-intersection at surface contact points.
+const EPS = 1e-4;
+
+/* ============================================================
+   2. MATERIALS & PRIMITIVES
+   ============================================================ */
+
+class Material {
+  constructor({
+    albedo = new Vector(0.8, 0.8, 0.8),
+    reflection = 0,     // 0 = matte, 1 = perfect mirror
+    refraction = 0,     // 0 = opaque, 1 = fully refractive
+    ior = 1.5,          // index of refraction (glass ~1.5, water ~1.33)
+    checker = null,     // { a, b, scale } for procedural checkerboard
+    kind = "diffuse"
+  } = {}) {
+    this.albedo = albedo;
+    this.reflection = reflection;
+    this.refraction = refraction;
+    this.ior = ior;
+    this.checker = checker;
+    this.kind = kind;
+  }
+
+  static diffuse(albedo) {
+    return new Material({ albedo, kind: "diffuse" });
+  }
+
+  static mirror(albedo) {
+    return new Material({ albedo, reflection: 1, kind: "mirror" });
+  }
+
+  static glass(albedo, ior = 1.5) {
+    return new Material({ albedo, refraction: 1, ior, kind: "glass" });
+  }
+
+  static checker(a, b, scale = 1) {
+    return new Material({ albedo: b, checker: { a, b, scale }, kind: "checker" });
+  }
+}
+
+class Primitive {
+  constructor({ name, material }) {
+    this.name = name;
+    this.material = material;
+  }
+}
+
+class Sphere extends Primitive {
+  constructor({ name, center, radius, material }) {
+    super({ name, material });
+    this.center = center;
+    this.radius = radius;
+  }
+
+  // Analytic ray-sphere intersection.
+  // Solves |origin + t*dir - center|^2 = r^2, using the half-b
+  // form to avoid redundant factors of two.
+  // Returns the nearest positive t, or -1 on a miss.
+  intersect(ray) {
+    const oc = ray.origin.sub(this.center);
+    const a = ray.direction.dot(ray.direction);
+    const halfB = oc.dot(ray.direction);
+    const c = oc.dot(oc) - this.radius * this.radius;
+    const disc = halfB * halfB - a * c;
+
+    if (disc < 0) return -1; // ray misses the sphere
+
+    const sqrtDisc = Math.sqrt(disc);
+
+    // Near root: the first surface the ray meets from outside.
+    const t0 = (-halfB - sqrtDisc) / a;
+    if (t0 > EPS) return t0;
+
+    // Far root: hit from inside the sphere.
+    const t1 = (-halfB + sqrtDisc) / a;
+    return t1 > EPS ? t1 : -1;
+  }
+
+  // Outward surface normal at a point on the sphere.
+  normalAt(point) {
+    return point.sub(this.center).mul(1 / this.radius);
+  }
+}
+
+class Plane extends Primitive {
+  constructor({ name, point, normal, material }) {
+    super({ name, material });
+    this.point = point;
+    this.normal = normal.normalize();
+  }
+
+  // Ray-plane intersection.
+  // Plane: (p - point) . normal = 0  =>  t = (point - origin).n / (dir.n)
+  // Returns the nearest positive t, or -1 when parallel / behind.
+  intersect(ray) {
+    const denom = ray.direction.dot(this.normal);
+
+    // Ray is parallel to the plane (or lies in it).
+    if (Math.abs(denom) < 1e-8) return -1;
+
+    const t = this.point.sub(ray.origin).dot(this.normal) / denom;
+    return t > EPS ? t : -1;
+  }
+
+  // Planes have a constant normal.
+  normalAt() {
+    return this.normal;
+  }
+}
+
+class Light {
+  constructor({ position, color, intensity = 1 }) {
+    this.position = position;
+    this.color = color;
+    this.intensity = intensity;
+  }
+}
+
+/* ============================================================
+   3. CAMERA
+   ============================================================ */
+
+class Camera {
+  constructor({
+    position,
+    target,
+    up = new Vector(0, 1, 0),
+    fov = 45,
+    aspect = 16 / 9
+  }) {
+    this.position = position;
+    this.target = target;
+    this.up = up;
+    this.fov = fov;
+    this.aspect = aspect;
+    this.updateBasis();
+  }
+
+  // Rebuilds the orthonormal camera basis. Called whenever the
+  // camera transform, field of view, or aspect ratio changes.
+  updateBasis() {
+    this.forward = this.target.sub(this.position).normalize();
+    // forward x worldUp gives the camera-right axis.
+    this.right = this.forward.cross(this.up).normalize();
+    // right x forward gives the corrected camera-up axis.
+    this.upAxis = this.right.cross(this.forward).normalize();
+
+    // Half-extents of the image plane at one unit of distance.
+    const halfFov = (this.fov * Math.PI) / 180 / 2;
+    this.halfHeight = Math.tan(halfFov);
+    this.halfWidth = this.halfHeight * this.aspect;
+  }
+
+  setAspect(aspect) {
+    this.aspect = aspect;
+    this.updateBasis();
+  }
+
+  // Primary ray through normalized image-plane coordinates
+  // nx, ny in [-1, 1] with +y up. The half-extents already
+  // account for the field of view and aspect ratio.
+  getRay(nx, ny) {
+    const direction = this.forward
+      .add(this.right.mul(nx * this.halfWidth))
+      .add(this.upAxis.mul(ny * this.halfHeight))
+      .normalize();
+
+    return new Ray(this.position, direction);
+  }
+}
+
+/* ============================================================
+   4. SCENE
+   ============================================================ */
+
+class Scene {
+  constructor(camera) {
+    this.camera = camera;
+    this.objects = [];
+    this.lights = [];
+  }
+
+  add(object) {
+    if (object instanceof Light) {
+      this.lights.push(object);
+    } else {
+      this.objects.push(object);
+    }
+    return this;
+  }
+
+  // Nearest intersection along the ray.
+  // Returns { object, t, point, normal } or null when nothing is hit.
+  hit(ray) {
+    let nearest = null;
+    let nearestT = Infinity;
+
+    for (let i = 0; i < this.objects.length; i++) {
+      const t = this.objects[i].intersect(ray);
+      if (t > EPS && t < nearestT) {
+        nearestT = t;
+        nearest = this.objects[i];
+      }
+    }
+
+    if (!nearest) return null;
+    const point = ray.at(nearestT);
+    return { object: nearest, t: nearestT, point, normal: nearest.normalAt(point) };
+  }
+
+  // Shadow query: is anything between origin and the light?
+  // Stops at the first blocker, so it is cheaper than a full hit.
+  occluded(origin, direction, maxDist) {
+    for (let i = 0; i < this.objects.length; i++) {
+      const t = this.objects[i].intersect(new Ray(origin, direction));
+      if (t > EPS && t < maxDist - EPS) return true;
+    }
+    return false;
+  }
+}
+
+/* ============================================================
+   5. SCENE CONSTRUCTION
+   ============================================================ */
+
+const camera = new Camera({
+  position: new Vector(0, 2.3, 7.2),
+  target: new Vector(0, 1.0, 0),
+  fov: 42,
+  aspect: 960 / 540
+});
+
+const scene = new Scene(camera);
+
+// Ground plane with a procedural checkerboard material.
+scene.add(new Plane({
+  name: "Ground",
+  point: new Vector(0, 0, 0),
+  normal: new Vector(0, 1, 0),
+  material: Material.checker(
+    new Vector(0.88, 0.88, 0.88),   // white tile
+    new Vector(0.05, 0.05, 0.05),   // black tile
+    1.0
+  )
+}));
+
+// 01 — matte sphere (flat red until lighting lands)
+scene.add(new Sphere({
+  name: "Sphere 01",
+  center: new Vector(-2.35, 1.15, -0.50),
+  radius: 1.15,
+  material: Material.diffuse(new Vector(0.78, 0.10, 0.10))
+}));
+
+// 02 — reflective sphere (flat silver until reflections land)
+scene.add(new Sphere({
+  name: "Sphere 02",
+  center: new Vector(0.15, 1.00, -1.60),
+  radius: 1.00,
+  material: Material.mirror(new Vector(0.68, 0.68, 0.70))
+}));
+
+// 03 — refractive sphere (pale blue glass)
+scene.add(new Sphere({
+  name: "Sphere 03",
+  center: new Vector(2.20, 0.95, -0.20),
+  radius: 0.95,
+  material: Material.glass(new Vector(0.62, 0.82, 1.00), 1.5)
+}));
+
+// Key light — warm.
+scene.add(new Light({
+  position: new Vector(4.5, 6.0, 4.0),
+  color: new Vector(1.00, 0.88, 0.72),
+  intensity: 1.0
+}));
+
+// Fill light — cool.
+scene.add(new Light({
+  position: new Vector(-5.0, 3.5, 2.0),
+  color: new Vector(0.52, 0.66, 0.85),
+  intensity: 0.6
+}));
+
+// Rim light — subtle back light for edge definition.
+scene.add(new Light({
+  position: new Vector(-1.0, 4.5, -6.0),
+  color: new Vector(0.75, 0.80, 0.90),
+  intensity: 0.35
+}));
+
+/* ============================================================
+   6. RAYTRACER — direct lighting, shadows, reflection,
+      refraction, anti-aliasing
+   ============================================================ */
+
+const BACKGROUND = new Vector(0.006, 0.006, 0.007);
+const AMBIENT = 0.07;
+const LIGHT_POWER = 32;
+const SURFACE_EPS = 1e-3;
+
+// Linear -> display gamma table. Precomputed because it runs
+// once per channel per pixel (millions of times per render).
+const GAMMA_LUT = (() => {
+  const lut = new Uint8Array(1024);
+  for (let i = 0; i < lut.length; i++) {
+    lut[i] = Math.round(255 * Math.pow(i / (lut.length - 1), 1 / 2.2));
+  }
+  return lut;
+})();
+
+function toByte(channel) {
+  if (channel <= 0) return 0;
+  if (channel >= 1) return 255;
+  return GAMMA_LUT[(channel * 1023) | 0];
+}
+
+// Schlick's approximation of the Fresnel reflectance.
+function fresnelSchlick(cosTheta, ior) {
+  const f0 = Math.pow((1 - ior) / (1 + ior), 2);
+  return f0 + (1 - f0) * Math.pow(1 - cosTheta, 5);
+}
+
+class Raytracer {
+  constructor(scene) {
+    this.scene = scene;
+    this.maxDepth = 5;
+    this.rays = 0;
+  }
+
+  trace(ray, depth) {
+    this.rays++;
+    const hit = this.scene.hit(ray);
+    if (!hit) return BACKGROUND;
+
+    const material = hit.object.material;
+    const normal = hit.normal;
+
+    switch (material.kind) {
+      case "checker": {
+        const scale = material.checker.scale || 1;
+        const cell =
+          Math.floor(hit.point.x / scale) + Math.floor(hit.point.z / scale);
+        const albedo = (cell & 1) ? material.checker.a : material.checker.b;
+        return this.shadeDiffuse(hit, normal, albedo);
+      }
+
+      case "diffuse":
+        return this.shadeDiffuse(hit, normal, material.albedo);
+
+      case "mirror": {
+        if (depth <= 0) return new Vector(0, 0, 0);
+        // Perfect specular reflection: R = D - 2(D·N)N
+        const direction = this.reflect(ray.direction, normal);
+        const origin = hit.point.add(normal.mul(SURFACE_EPS));
+        const incoming = this.trace(new Ray(origin, direction), depth - 1);
+        return incoming.hadamard(material.albedo);
+      }
+
+      case "glass":
+        if (depth <= 0) return new Vector(0, 0, 0);
+        return this.shadeGlass(ray, hit, depth);
+
+      default:
+        return material.albedo;
+    }
+  }
+
+  // Lambertian direct lighting with hard shadow rays.
+  shadeDiffuse(hit, normal, albedo) {
+    let r = albedo.x * AMBIENT;
+    let g = albedo.y * AMBIENT;
+    let b = albedo.z * AMBIENT;
+
+    // Offset along the normal to avoid shadow acne.
+    const origin = hit.point.add(normal.mul(SURFACE_EPS));
+
+    for (let i = 0; i < this.scene.lights.length; i++) {
+      const light = this.scene.lights[i];
+      const toLight = light.position.sub(hit.point);
+      const dist = toLight.length();
+      if (dist < 1e-6) continue;
+
+      const dir = toLight.mul(1 / dist);
+      const ndotl = normal.dot(dir);
+      if (ndotl <= 0) continue;
+
+      this.rays++; // shadow ray
+      if (this.scene.occluded(origin, dir, dist)) continue;
+
+      // Inverse-square falloff, softened near the source.
+      const falloff = 1 / (1 + dist * dist);
+      const energy = light.intensity * LIGHT_POWER * falloff * ndotl;
+
+      r += albedo.x * light.color.x * energy;
+      g += albedo.y * light.color.y * energy;
+      b += albedo.z * light.color.z * energy;
+    }
+
+    return new Vector(r, g, b);
+  }
+
+  reflect(direction, normal) {
+    return direction.sub(normal.mul(2 * direction.dot(normal))).normalize();
+  }
+
+  // Snell's law with Fresnel-weighted reflection. Handles rays
+  // entering and exiting the medium, plus total internal reflection.
+  shadeGlass(ray, hit, depth) {
+    const material = hit.object.material;
+    const outward = hit.normal;
+    const entering = ray.direction.dot(outward) < 0;
+
+    // Normal always faces against the incoming ray.
+    const n = entering ? outward : outward.mul(-1);
+    const n1 = entering ? 1 : material.ior;
+    const n2 = entering ? material.ior : 1;
+
+    const cosI = -ray.direction.dot(n);
+    const fresnel = fresnelSchlick(cosI, material.ior);
+
+    const reflectDir = this.reflect(ray.direction, n);
+    const reflectOrigin = hit.point.add(n.mul(SURFACE_EPS));
+
+    // Snell: sin(thetaT) = eta * sin(thetaI)
+    const eta = n1 / n2;
+    const sin2T = eta * eta * (1 - cosI * cosI);
+
+    // Total internal reflection: all energy reflects.
+    if (sin2T > 1) {
+      return this.trace(new Ray(reflectOrigin, reflectDir), depth - 1);
+    }
+
+    const cosT = Math.sqrt(1 - sin2T);
+
+    // Refracted direction in vector form:
+    // T = eta*D + (eta*cosI - cosT)*N
+    const refractDir = ray.direction
+      .mul(eta)
+      .add(n.mul(eta * cosI - cosT))
+      .normalize();
+    const refractOrigin = hit.point.sub(n.mul(SURFACE_EPS));
+
+    // Transmitted light picks up the glass tint.
+    const transmitted = this.trace(new Ray(refractOrigin, refractDir), depth - 1)
+      .mul(1 - fresnel)
+      .hadamard(material.albedo);
+
+    if (fresnel < 1e-4) return transmitted;
+
+    const reflected = this.trace(new Ray(reflectOrigin, reflectDir), depth - 1)
+      .mul(fresnel);
+
+    return transmitted.add(reflected);
+  }
+}
+
+/* ============================================================
+   7. RENDERER — chunked scanline loop
+   ============================================================ */
+
+class Renderer {
+  constructor({ scene, canvas, linesPerChunk = 10, onStart, onStats, onComplete }) {
+    this.scene = scene;
+    this.canvas = canvas;
+    this.linesPerChunk = linesPerChunk;
+    this.onStart = onStart;
+    this.onStats = onStats;
+    this.onComplete = onComplete;
+
+    this.tracer = new Raytracer(scene);
+    this.samples = 1;
+    this.maxDepth = 5;
+
+    this.raf = 0;
+    this.running = false;
+    this.row = 0;
+
+    // Bind once so requestAnimationFrame keeps the renderer context.
+    this.step = this.step.bind(this);
+  }
+
+  start() {
+    this.cancel();
+
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    this.width = w;
+    this.height = h;
+    this.ctx = this.canvas.getContext("2d");
+    this.imageData = this.ctx.createImageData(w, h);
+    this.pixels = this.imageData.data;
+
+    this.row = 0;
+    this.tracer.rays = 0;
+    this.tracer.maxDepth = this.maxDepth;
+    this.startTime = performance.now();
+    this.running = true;
+
+    // Clear the previous frame so the new render visibly resolves
+    // from the top down instead of layering over stale pixels.
+    this.ctx.fillStyle = "#000000";
+    this.ctx.fillRect(0, 0, w, h);
+
+    this.onStart();
+    this.raf = requestAnimationFrame(this.step);
+  }
+
+  cancel() {
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
+    this.running = false;
+  }
+
+  // Renders one chunk of scanlines per animation frame so the
+  // main thread stays responsive.
+  step() {
+    if (!this.running) return;
+
+    const startRow = this.row;
+    const endRow = Math.min(startRow + this.linesPerChunk, this.height);
+    for (let y = startRow; y < endRow; y++) this.renderRow(y);
+    this.row = endRow;
+
+    // Blit only the scanlines that just finished, which keeps the
+    // per-frame upload small and shows the image resolving top-down.
+    this.ctx.putImageData(
+      this.imageData,
+      0,
+      0,
+      0,
+      startRow,
+      this.width,
+      endRow - startRow
+    );
+
+    const elapsed = performance.now() - this.startTime;
+    const rays = this.tracer.rays;
+    const progress = this.row / this.height;
+    this.onStats({ elapsed, rays, progress });
+
+    if (this.row >= this.height) {
+      this.running = false;
+      this.raf = 0;
+      this.onComplete({ elapsed, rays, progress: 1 });
+      return;
+    }
+
+    this.raf = requestAnimationFrame(this.step);
+  }
+
+  renderRow(y) {
+    const w = this.width;
+    const h = this.height;
+    const cam = this.scene.camera;
+    const pixels = this.pixels;
+    const tracer = this.tracer;
+    const samples = this.samples;
+    const invSamples = 1 / samples;
+    const jitter = samples > 1;
+
+    for (let x = 0; x < w; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+
+      for (let s = 0; s < samples; s++) {
+        // Sub-pixel jitter for anti-aliasing. A single sample
+        // stays on the pixel center for a clean preview.
+        const jx = jitter ? Math.random() : 0.5;
+        const jy = jitter ? Math.random() : 0.5;
+        const nx = (2 * (x + jx)) / w - 1;
+        const ny = 1 - (2 * (y + jy)) / h;
+
+        const color = tracer.trace(cam.getRay(nx, ny), this.maxDepth);
+        r += color.x;
+        g += color.y;
+        b += color.z;
+      }
+
+      const i = (y * w + x) * 4;
+      pixels[i] = toByte(r * invSamples);
+      pixels[i + 1] = toByte(g * invSamples);
+      pixels[i + 2] = toByte(b * invSamples);
+      pixels[i + 3] = 255;
+    }
+  }
+}
+
+/* ============================================================
+   8. UI WIRING
+   ============================================================ */
+
+const PRESETS = [
+  [480, 270],
+  [640, 360],
+  [800, 450],
+  [960, 540],
+  [1280, 720],
+  [1600, 900]
+];
+
+const ui = {
+  resolution: document.getElementById("resolution"),
+  width: document.getElementById("width"),
+  height: document.getElementById("height"),
+  bounces: document.getElementById("bounces"),
+  samples: document.getElementById("samples"),
+  renderBtn: document.getElementById("render"),
+  canvas: document.getElementById("canvas"),
+  viewportMeta: document.getElementById("viewport-meta"),
+  sceneList: document.getElementById("scene-list"),
+  statTime: document.getElementById("stat-time"),
+  statRays: document.getElementById("stat-rays"),
+  statusText: document.getElementById("status-text"),
+  statusDot: document.getElementById("status-dot"),
+  statusResolution: document.getElementById("status-resolution"),
+  sceneEditor: document.getElementById("sphere-editor"),
+  editorTitle: document.getElementById("editor-title"),
+  editorKind: document.getElementById("editor-kind"),
+  sphereColor: document.getElementById("sphere-color"),
+  sphereColorHex: document.getElementById("sphere-color-hex"),
+  sphereMaterial: document.getElementById("sphere-material"),
+  aboutModal: document.getElementById("about-modal"),
+  aboutClose: document.getElementById("about-close"),
+  aboutDismiss: document.getElementById("about-dismiss")
+};
+
+function gcd(a, b) {
+  while (b) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+function aspectLabel(w, h) {
+  const d = gcd(w, h);
+  return (w / d) + ":" + (h / d);
+}
+
+function currentResolution() {
+  const w = Math.max(64, Math.min(3840, Math.round(Number(ui.width.value) || 960)));
+  const h = Math.max(64, Math.min(2160, Math.round(Number(ui.height.value) || 540)));
+  return { w, h };
+}
+
+function syncResolutionSelect(w, h) {
+  const match = PRESETS.find(([pw, ph]) => pw === w && ph === h);
+  ui.resolution.value = match ? w + "x" + h : "custom";
+}
+
+function applyResolution() {
+  const { w, h } = currentResolution();
+
+  // Any in-flight render belongs to the old resolution.
+  renderer.cancel();
+
+  ui.width.value = w;
+  ui.height.value = h;
+  ui.canvas.width = w;
+  ui.canvas.height = h;
+  ui.viewportMeta.textContent = w + " \u00d7 " + h + " \u00b7 " + aspectLabel(w, h);
+  document.getElementById("status-resolution").textContent = w + " \u00d7 " + h;
+
+  scene.camera.setAspect(w / h);
+
+  // Canvas starts black until the tracer writes into it.
+  const ctx = ui.canvas.getContext("2d");
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, w, h);
+
+  // Resolution changes invalidate any previous render.
+  resetStats();
+  setStatus("Idle", "idle");
+}
+
+function resetStats() {
+  ui.statTime.textContent = "0.00 s";
+  ui.statRays.textContent = "0";
+}
+
+function setStatus(text, mode = "idle") {
+  ui.statusText.textContent = text;
+  ui.statusDot.className = "status-dot" + (mode === "idle" ? "" : " " + mode);
+}
+
+function buildResolutionOptions() {
+  const frag = document.createDocumentFragment();
+
+  for (const [w, h] of PRESETS) {
+    const opt = document.createElement("option");
+    opt.value = w + "x" + h;
+    opt.textContent = w + " \u00d7 " + h;
+    frag.appendChild(opt);
+  }
+
+  const custom = document.createElement("option");
+  custom.value = "custom";
+  custom.textContent = "Custom";
+  frag.appendChild(custom);
+
+  ui.resolution.appendChild(frag);
+}
+
+/* ---------- Scene editor (sphere color + material) ---------- */
+
+let selectedSphere = null;
+
+// Display colors are sRGB; the raytracer works in linear space.
+function srgbToLinear(channel) {
+  return channel <= 0.04045
+    ? channel / 12.92
+    : Math.pow((channel + 0.055) / 1.055, 2.4);
+}
+
+function linearToSrgb(channel) {
+  const c = Math.max(0, Math.min(1, channel));
+  return c <= 0.0031308
+    ? c * 12.92
+    : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+function vectorToHex(v) {
+  const byte = (channel) =>
+    Math.round(linearToSrgb(channel) * 255).toString(16).padStart(2, "0");
+  return "#" + byte(v.x) + byte(v.y) + byte(v.z);
+}
+
+function hexToVector(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return new Vector(
+    srgbToLinear(((n >> 16) & 255) / 255),
+    srgbToLinear(((n >> 8) & 255) / 255),
+    srgbToLinear((n & 255) / 255)
+  );
+}
+
+function buildSceneList() {
+  ui.sceneList.innerHTML = "";
+
+  for (const object of scene.objects) {
+    const row = document.createElement("div");
+    row.className = "kv-row";
+
+    const key = document.createElement("span");
+    key.className = "kv-key";
+    key.textContent = object.name;
+
+    const value = document.createElement("span");
+    value.className = "kv-val";
+    value.textContent = object.material.kind;
+
+    row.appendChild(key);
+    row.appendChild(value);
+
+    // Only spheres are editable; the ground plane stays fixed.
+    if (object instanceof Sphere) {
+      row.classList.add("selectable");
+      row.tabIndex = 0;
+      row.setAttribute("role", "button");
+      row.setAttribute("aria-pressed", String(object === selectedSphere));
+      row.addEventListener("click", () => selectSphere(object));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectSphere(object);
+        }
+      });
+    }
+
+    if (object === selectedSphere) row.classList.add("selected");
+    ui.sceneList.appendChild(row);
+  }
+
+  const lightsRow = document.createElement("div");
+  lightsRow.className = "kv-row";
+
+  const lightsKey = document.createElement("span");
+  lightsKey.className = "kv-key";
+  lightsKey.textContent = "Lights";
+
+  const lightsVal = document.createElement("span");
+  lightsVal.className = "kv-val";
+  lightsVal.textContent = String(scene.lights.length);
+
+  lightsRow.appendChild(lightsKey);
+  lightsRow.appendChild(lightsVal);
+  ui.sceneList.appendChild(lightsRow);
+}
+
+function selectSphere(sphere) {
+  selectedSphere = sphere;
+  buildSceneList();
+  updateSphereEditor();
+  // Keep the editor in view when the Scene panel is long.
+  ui.sceneEditor.scrollIntoView({ block: "nearest" });
+}
+
+function updateSphereEditor() {
+  if (!selectedSphere) {
+    ui.sceneEditor.hidden = true;
+    return;
+  }
+
+  const material = selectedSphere.material;
+  const hex = vectorToHex(material.albedo);
+
+  ui.sceneEditor.hidden = false;
+  ui.editorTitle.textContent = selectedSphere.name;
+  ui.editorKind.textContent = material.kind;
+  ui.sphereColor.value = hex;
+  ui.sphereColorHex.textContent = hex.toUpperCase();
+  ui.sphereMaterial.value = material.kind;
+}
+
+function setMaterialKind(material, kind) {
+  material.kind = kind;
+  material.reflection = kind === "mirror" ? 1 : 0;
+  material.refraction = kind === "glass" ? 1 : 0;
+  if (kind === "glass") material.ior = 1.5;
+}
+
+ui.sphereColor.addEventListener("input", () => {
+  if (!selectedSphere) return;
+  selectedSphere.material.albedo = hexToVector(ui.sphereColor.value);
+  ui.sphereColorHex.textContent = ui.sphereColor.value.toUpperCase();
+});
+
+// A color picker fires `change` once its dialog closes, which is a
+// sensible moment to spend time on a fresh frame.
+ui.sphereColor.addEventListener("change", () => {
+  if (selectedSphere) startRender();
+});
+
+ui.sphereMaterial.addEventListener("change", () => {
+  if (!selectedSphere) return;
+  setMaterialKind(selectedSphere.material, ui.sphereMaterial.value);
+  buildSceneList();
+  updateSphereEditor();
+  startRender();
+});
+
+function startRender() {
+  // Any drag preview is superseded by a full frame.
+  cancelPreview();
+
+  // Clamp and echo the settings so the inputs always show what
+  // the renderer actually used.
+  renderer.samples = readInteger(ui.samples, 1, 64, 1);
+  renderer.maxDepth = readInteger(ui.bounces, 0, 32, 5);
+  renderer.start();
+}
+
+const renderer = new Renderer({
+  scene,
+  canvas: ui.canvas,
+  linesPerChunk: 10,
+  onStart: () => {
+    resetStats();
+    setStatus("Rendering", "busy");
+  },
+  onStats: ({ elapsed, rays, progress }) => {
+    ui.statTime.textContent = (elapsed / 1000).toFixed(2) + " s";
+    ui.statRays.textContent = formatCount(rays);
+    setStatus("Rendering " + Math.round(progress * 100) + "%", "busy");
+  },
+  onComplete: ({ elapsed, rays }) => {
+    ui.statTime.textContent = (elapsed / 1000).toFixed(2) + " s";
+    ui.statRays.textContent = formatCount(rays);
+    setStatus("Done", "done");
+  }
+});
+
+function formatCount(n) {
+  return Math.round(n).toLocaleString("en-US");
+}
+
+function readInteger(input, min, max, fallback) {
+  const parsed = Math.round(Number(input.value));
+  const value = Number.isFinite(parsed)
+    ? Math.max(min, Math.min(max, parsed))
+    : fallback;
+  input.value = value;
+  return value;
+}
+
+/* ---------- Fast drag preview (200x200, one sample) ---------- */
+
+const PREVIEW_SIZE = 200;
+
+const previewBuffer = document.createElement("canvas");
+previewBuffer.width = PREVIEW_SIZE;
+previewBuffer.height = PREVIEW_SIZE;
+const previewCtx = previewBuffer.getContext("2d");
+
+let previewRaf = 0;
+
+function cancelPreview() {
+  if (previewRaf) {
+    cancelAnimationFrame(previewRaf);
+    previewRaf = 0;
+  }
+}
+
+// Coalesce pointer events into at most one preview per frame.
+function schedulePreview() {
+  if (previewRaf) return;
+  previewRaf = requestAnimationFrame(() => {
+    previewRaf = 0;
+    if (drag) drawPreview();
+  });
+}
+
+// Renders a 200x200 one-sample frame and stretches it over the
+// canvas, so orbiting gives immediate feedback at almost no cost.
+function drawPreview() {
+  if (renderer.running) return;
+
+  const started = performance.now();
+  const size = PREVIEW_SIZE;
+  const image = previewCtx.createImageData(size, size);
+  const pixels = image.data;
+  const tracer = renderer.tracer;
+  const cam = scene.camera;
+
+  tracer.rays = 0;
+  // Deep recursion is wasted at preview resolution.
+  tracer.maxDepth = Math.min(renderer.maxDepth, 6);
+
+  for (let y = 0; y < size; y++) {
+    const ny = 1 - (2 * (y + 0.5)) / size;
+    for (let x = 0; x < size; x++) {
+      const nx = (2 * (x + 0.5)) / size - 1;
+      const color = tracer.trace(cam.getRay(nx, ny), tracer.maxDepth);
+      const i = (y * size + x) * 4;
+      pixels[i] = toByte(color.x);
+      pixels[i + 1] = toByte(color.y);
+      pixels[i + 2] = toByte(color.z);
+      pixels[i + 3] = 255;
+    }
+  }
+
+  previewCtx.putImageData(image, 0, 0);
+
+  const ctx = ui.canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(previewBuffer, 0, 0, ui.canvas.width, ui.canvas.height);
+
+  const elapsed = performance.now() - started;
+  ui.statTime.textContent = (elapsed / 1000).toFixed(2) + " s";
+  ui.statRays.textContent = formatCount(tracer.rays);
+  setStatus("Preview", "busy");
+}
+
+/* ---------- Camera orbit (drag to change the view) ---------- */
+
+const orbit = {
+  target: new Vector(0, 1, 0),
+  radius: 1,
+  yaw: 0,
+  pitch: 0
+};
+
+let homeOrbit = null;
+
+function initOrbit() {
+  const offset = scene.camera.position.sub(scene.camera.target);
+  orbit.target = scene.camera.target.clone();
+  orbit.radius = Math.max(0.5, offset.length());
+  orbit.yaw = Math.atan2(offset.x, offset.z);
+  orbit.pitch = Math.asin(
+    Math.max(-1, Math.min(1, offset.y / orbit.radius))
+  );
+
+  homeOrbit = {
+    target: orbit.target.clone(),
+    radius: orbit.radius,
+    yaw: orbit.yaw,
+    pitch: orbit.pitch
+  };
+}
+
+function updateCameraFromOrbit() {
+  const cosPitch = Math.cos(orbit.pitch);
+  const sinPitch = Math.sin(orbit.pitch);
+
+  scene.camera.position = new Vector(
+    orbit.target.x + orbit.radius * cosPitch * Math.sin(orbit.yaw),
+    orbit.target.y + orbit.radius * sinPitch,
+    orbit.target.z + orbit.radius * cosPitch * Math.cos(orbit.yaw)
+  );
+  scene.camera.target = orbit.target;
+  scene.camera.updateBasis();
+}
+
+function orbitCamera(dx, dy) {
+  orbit.yaw -= dx * 0.007;
+  // Keep the camera above the floor plane.
+  orbit.pitch = Math.max(0.03, Math.min(1.45, orbit.pitch + dy * 0.006));
+  updateCameraFromOrbit();
+}
+
+let drag = null;
+
+ui.canvas.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  drag = {
+    id: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    moved: false
+  };
+  ui.canvas.setPointerCapture(event.pointerId);
+  ui.canvas.classList.add("dragging");
+  cancelPreview();
+  // A render in flight would smear two camera angles together.
+  if (renderer.running) {
+    renderer.cancel();
+    setStatus("Idle", "idle");
+  }
+});
+
+ui.canvas.addEventListener("pointermove", (event) => {
+  if (!drag || event.pointerId !== drag.id) return;
+
+  const dx = event.clientX - drag.x;
+  const dy = event.clientY - drag.y;
+  if (dx === 0 && dy === 0) return;
+
+  drag.x = event.clientX;
+  drag.y = event.clientY;
+  drag.moved = true;
+
+  orbitCamera(dx, dy);
+  // Immediate low-res feedback while the pointer is down.
+  schedulePreview();
+});
+
+function endDrag(event, renderFullFrame) {
+  if (!drag || event.pointerId !== drag.id) return;
+
+  const moved = drag.moved;
+  drag = null;
+  ui.canvas.classList.remove("dragging");
+  if (ui.canvas.hasPointerCapture(event.pointerId)) {
+    ui.canvas.releasePointerCapture(event.pointerId);
+  }
+
+  cancelPreview();
+
+  // Releasing after an actual orbit produces the final frame with
+  // whatever quality the sidebar currently asks for.
+  if (renderFullFrame && moved) {
+    startRender();
+  } else if (!moved) {
+    setStatus("Idle", "idle");
+  }
+}
+
+ui.canvas.addEventListener("pointerup", (event) => endDrag(event, true));
+ui.canvas.addEventListener("pointercancel", (event) => endDrag(event, false));
+
+ui.resolution.addEventListener("change", () => {
+  if (ui.resolution.value === "custom") return;
+  const [w, h] = ui.resolution.value.split("x").map(Number);
+  ui.width.value = w;
+  ui.height.value = h;
+  applyResolution();
+});
+
+ui.width.addEventListener("change", () => {
+  const { w, h } = currentResolution();
+  syncResolutionSelect(w, h);
+  applyResolution();
+});
+
+ui.height.addEventListener("change", () => {
+  const { w, h } = currentResolution();
+  syncResolutionSelect(w, h);
+  applyResolution();
+});
+
+ui.renderBtn.addEventListener("click", startRender);
+
+/* ---------- Menu bar actions ---------- */
+
+const menuItems = Array.from(document.querySelectorAll(".menu-item"));
+
+function closeMenus() {
+  for (const item of menuItems) {
+    item.classList.remove("open");
+    item.querySelector(".menu-trigger").setAttribute("aria-expanded", "false");
+    item.querySelector(".menu-panel").hidden = true;
+  }
+}
+
+for (const item of menuItems) {
+  const trigger = item.querySelector(".menu-trigger");
+
+  trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const panel = item.querySelector(".menu-panel");
+    const willOpen = panel.hidden;
+    closeMenus();
+
+    if (willOpen) {
+      item.classList.add("open");
+      trigger.setAttribute("aria-expanded", "true");
+      panel.hidden = false;
+    }
+  });
+}
+
+document.addEventListener("pointerdown", (event) => {
+  if (!(event.target instanceof Element) || !event.target.closest(".menu-item")) {
+    closeMenus();
+  }
+});
+
+function drawExportWatermark(ctx, width, height) {
+  // Scale the stamp with the image so it stays legible at any resolution.
+  const size = Math.max(12, Math.round(width * 0.014));
+  const pad = Math.max(10, Math.round(width * 0.012));
+
+  ctx.save();
+  ctx.font =
+    "500 " + size + 'px ui-monospace, "JetBrains Mono", "Fira Code", Consolas, monospace';
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = Math.max(2, Math.round(size * 0.3));
+  ctx.fillStyle = "rgba(236, 236, 236, 0.5)";
+  ctx.fillText("koiafk", width - pad, height - pad);
+  ctx.restore();
+}
+
+function exportPNG() {
+  const canvas = ui.canvas;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const snapshot = ctx.getImageData(0, 0, width, height);
+
+  let dataURL;
+  try {
+    drawExportWatermark(ctx, width, height);
+    dataURL = canvas.toDataURL("image/png");
+  } finally {
+    // The stamp belongs to the exported file only; restore the clean on-screen frame.
+    ctx.putImageData(snapshot, 0, 0);
+  }
+
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const link = document.createElement("a");
+
+  link.href = dataURL;
+  link.download =
+    "raytracer-" + width + "x" + height + "-" + stamp + ".png";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setStatus("PNG exported", "done");
+}
+
+function renderHighQuality() {
+  ui.bounces.value = 32;
+  ui.samples.value = 16;
+  startRender();
+}
+
+function resetCamera() {
+  if (!homeOrbit) return;
+
+  renderer.cancel();
+  cancelPreview();
+  drag = null;
+
+  orbit.target = homeOrbit.target.clone();
+  orbit.radius = homeOrbit.radius;
+  orbit.yaw = homeOrbit.yaw;
+  orbit.pitch = homeOrbit.pitch;
+  updateCameraFromOrbit();
+
+  // Show the home view immediately, then leave the final frame to
+  // the user (or a drag release).
+  drawPreview();
+  setStatus("Camera reset", "idle");
+}
+
+function openAbout() {
+  ui.aboutModal.hidden = false;
+  ui.aboutClose.focus();
+}
+
+function closeAbout() {
+  ui.aboutModal.hidden = true;
+}
+
+ui.aboutClose.addEventListener("click", closeAbout);
+ui.aboutDismiss.addEventListener("click", closeAbout);
+
+ui.aboutModal.addEventListener("pointerdown", (event) => {
+  if (event.target === ui.aboutModal) closeAbout();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  closeMenus();
+  closeAbout();
+});
+
+const menuActions = {
+  "export-png": exportPNG,
+  "render-hq": renderHighQuality,
+  "reset-camera": resetCamera,
+  about: openAbout
+};
+
+for (const button of document.querySelectorAll("[data-action]")) {
+  button.addEventListener("click", () => {
+    const action = menuActions[button.dataset.action];
+    closeMenus();
+    if (action) action();
+  });
+}
+
+// ---------- Boot ----------
+buildResolutionOptions();
+buildSceneList();
+syncResolutionSelect(960, 540);
+applyResolution();
+initOrbit();
+</script>
+</body>
+</html>
+
