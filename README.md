@@ -2,7 +2,7 @@
 
 A physically-based 3D rendering engine built from scratch in a single HTML file. No WebGL, no external libraries, no build steps. Pure JavaScript math.
 
-![Render Output](screenshot.png)
+**[Launch the Raytracer](https://koiafk.github.io/cpu-raytracer/)**
 
 ## What it does
 - **Ray Intersections:** Calculates real-time ray-sphere and ray-plane intersections.
